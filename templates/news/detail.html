@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% load static news_extras %}
+{% block title %}{{ news.title|truncatechars:60 }} — AI News{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-wrapper{
+  max-width:1200px;margin:0 auto;padding:24px 20px;
+  display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start;
+}
+/* ── Hero ─────────────────────────────────────────── */
+.article-hero{
+  width:100%;height:420px;object-fit:cover;
+  border-radius:20px;display:block;margin-bottom:24px;
+}
+.article-hero-gradient{
+  width:100%;height:320px;border-radius:20px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:6rem;margin-bottom:24px;
+}
+/* ── Article body ────────────────────────────────── */
+.article-main{}
+.category-pill{
+  display:inline-block;
+  padding:5px 14px;border-radius:20px;font-size:.75rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;color:#fff;
+}
+.article-title{
+  font-size:2rem;font-weight:800;color:#fff;line-height:1.25;
+  margin-bottom:14px;
+}
+.article-meta{
+  display:flex;flex-wrap:wrap;gap:14px;align-items:center;
+  font-size:.82rem;color:rgba(255,255,255,.5);margin-bottom:24px;
+  padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.article-meta strong{color:rgba(255,255,255,.75);}
+.tag-pill{
+  padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;
+}
+.tag-hot     {background:rgba(231,76,60,.8);}
+.tag-new     {background:rgba(46,204,113,.8);}
+.tag-trending{background:rgba(241,196,15,.8);color:#111;}
+
+.article-content{
+  font-size:1.05rem;line-height:1.85;color:#cbd5e1;
+}
+.article-content p{margin-bottom:1.2rem;}
+.article-content a{color:#818cf8;text-decoration:underline;}
+.article-content strong{color:#e2e8f0;}
+
+.source-link{
+  display:inline-flex;align-items:center;gap:8px;margin-top:24px;
+  background:linear-gradient(135deg,#7c3aed,#4c1d95);
+  color:#fff;padding:11px 24px;border-radius:20px;
+  text-decoration:none;font-size:.9rem;font-weight:700;
+  transition:opacity .2s;
+}
+.source-link:hover{opacity:.85;color:#fff;}
+
+/* ── Sidebar ─────────────────────────────────────── */
+.article-sidebar{position:sticky;top:80px;}
+.sidebar-card{
+  background:rgba(15,23,42,.8);border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;padding:20px;margin-bottom:20px;
+}
+.sidebar-card-title{
+  font-size:.8rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.06em;color:rgba(255,255,255,.45);margin-bottom:14px;
+}
+.trending-item{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);
+  text-decoration:none;transition:opacity .2s;
+}
+.trending-item:last-child{border-bottom:none;}
+.trending-item:hover{opacity:.75;}
+.trending-num{
+  min-width:24px;height:24px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:800;color:#fff;flex-shrink:0;
+}
+.trending-title{font-size:.82rem;color:#e2e8f0;line-height:1.35;font-weight:500;}
+.trending-source{font-size:.72rem;color:rgba(255,255,255,.4);margin-top:3px;}
+
+.subscribe-card{
+  background:linear-gradient(135deg,#7c3aed,#4c1d95);
+  border-radius:18px;padding:24px;text-align:center;
+}
+.subscribe-card h3{font-size:1rem;font-weight:800;color:#fff;margin-bottom:8px;}
+.subscribe-card p{font-size:.82rem;color:rgba(255,255,255,.7);margin-bottom:16px;}
+.btn-subscribe{
+  width:100%;padding:10px;background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.3);color:#fff;
+  border-radius:12px;font-size:.85rem;font-weight:700;cursor:pointer;
+  transition:.2s;
+}
+.btn-subscribe:hover{background:rgba(255,255,255,.25);}
+
+/* ── Back link ───────────────────────────────────── */
+.back-link{
+  display:inline-flex;align-items:center;gap:6px;
+  color:rgba(255,255,255,.5);font-size:.85rem;
+  text-decoration:none;margin-bottom:18px;
+  transition:color .2s;
+}
+.back-link:hover{color:rgba(255,255,255,.9);}
+
+/* ── Fullscreen content loading ──────────────────── */
+.content-loading{
+  display:flex;flex-direction:column;align-items:center;
+  gap:12px;padding:40px 0;color:#64748b;
+}
+.spinner-ring{
+  width:40px;height:40px;
+  border:3px solid rgba(255,255,255,.08);
+  border-top-color:#7c3aed;
+  border-radius:50%;animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:900px){
+  .detail-wrapper{grid-template-columns:1fr;}
+  .article-sidebar{position:static;}
+  .article-hero{height:240px;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-wrapper">
+  <!-- ── Main article ─────────────────────────────── -->
+  <article class="article-main">
+    <a href="{% url 'news_catalogue' %}" class="back-link">← Back to Catalogue</a>
+
+    {% if news.source_url %}
+      <img src="{{ news.card_image_url }}"
+           class="article-hero"
+           onerror="this.style.display='none';document.getElementById('heroFallback').style.display='flex';"
+           alt="{{ news.title }}">
+      <div id="heroFallback" class="article-hero-gradient"
+           style="display:none;background:{{ theme.gradient }}">{{ theme.icon }}</div>
+    {% else %}
+      <div class="article-hero-gradient" style="background:{{ theme.gradient }}">{{ theme.icon }}</div>
+    {% endif %}
+
+    <span class="category-pill" style="background:{{ theme.gradient }}">{{ news.category }}</span>
+    <h1 class="article-title">{{ news.title }}</h1>
+
+    <div class="article-meta">
+      <span>📅 <strong>{{ news.published_at|date:"M d, Y" }}</strong></span>
+      <span>📰 <strong>{{ news.source|default:"AI News Desk" }}</strong></span>
+      <span>⭐ Importance: <strong>{{ news.importance }}/10</strong></span>
+      <span class="tag-pill tag-{{ news.tag|lower }}">{{ news.tag }}</span>
+    </div>
+
+    <div class="article-content" id="articleContent">
+      {% if news.full_content %}
+        {{ news.full_content|safe }}
+      {% else %}
+        <div class="content-loading" id="contentLoader">
+          <div class="spinner-ring"></div>
+          <span>Generating full article with AI…</span>
+        </div>
+        <div id="generatedContent"></div>
+      {% endif %}
+    </div>
+
+    {% if news.source_url %}
+      <a href="{{ news.source_url }}" target="_blank" rel="noopener noreferrer" class="source-link">
+        Read Original Article →
+      </a>
+    {% endif %}
+  </article>
+
+  <!-- ── Sidebar ─────────────────────────────────── -->
+  <aside class="article-sidebar">
+    <div class="sidebar-card">
+      <div class="sidebar-card-title">🔥 Trending Now</div>
+      {% for t in trending %}
+        <a href="{% url 'news_detail' t.id %}" class="trending-item">
+          <span class="trending-num" style="background:{{ t.theme.gradient|default:'linear-gradient(135deg,#6366f1,#312e81)' }}">
+            {{ forloop.counter }}
+          </span>
+          <div>
+            <div class="trending-title">{{ t.title|truncatechars:70 }}</div>
+            <div class="trending-source">{{ t.source|default:"AI News" }} · {{ t.published_at|timesince }} ago</div>
+          </div>
+        </a>
+      {% empty %}
+        <p style="color:rgba(255,255,255,.3);font-size:.85rem">No trending articles yet.</p>
+      {% endfor %}
+    </div>
+
+    <div class="subscribe-card">
+      <h3>🚀 Stay Updated</h3>
+      <p>Get the latest AI news delivered to your dashboard every hour.</p>
+      <button class="btn-subscribe" onclick="alert('Agent is already running! News updates automatically every 60 seconds.')">
+        ✓ Agent Active
+      </button>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-generate article content if not stored
+const loader  = document.getElementById("contentLoader");
+const genDiv  = document.getElementById("generatedContent");
+
+if(loader){
+  fetch("{% url 'generate_article_content' %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": "{{ csrf_token }}"
+    },
+    body: JSON.stringify({
+      title:    "{{ news.title|escapejs }}",
+      summary:  "{{ news.summary|escapejs }}",
+      category: "{{ news.category|escapejs }}",
+      url:      "{{ news.source_url|escapejs }}",
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    loader.style.display = "none";
+    if(d.success){
+      genDiv.innerHTML = d.content;
+    } else {
+      genDiv.innerHTML = `<p style="color:#94a3b8">{{ news.summary|escapejs }}</p>`;
+    }
+  })
+  .catch(() => {
+    loader.style.display = "none";
+    genDiv.innerHTML = `<p style="color:#94a3b8">{{ news.summary|escapejs }}</p>`;
+  });
+}
+</script>
+{% endblock %}

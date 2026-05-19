@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — AI News Dashboard</title>
+  {% load static %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      min-height:100vh;
+      display:flex;align-items:center;justify-content:center;
+      background:#070b14;
+      font-family:'Segoe UI',system-ui,sans-serif;
+      overflow:hidden;
+    }
+    /* animated gradient orbs */
+    .orb{position:fixed;border-radius:50%;filter:blur(80px);opacity:.35;animation:float 8s ease-in-out infinite;}
+    .orb1{width:500px;height:500px;background:#7c3aed;top:-150px;left:-100px;}
+    .orb2{width:400px;height:400px;background:#10a37f;bottom:-100px;right:-80px;animation-delay:3s;}
+    .orb3{width:300px;height:300px;background:#4285f4;top:40%;left:50%;animation-delay:5s;}
+    @keyframes float{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-30px) scale(1.05);}}
+
+    .login-card{
+      background:rgba(15,20,40,.85);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:24px;
+      padding:48px 44px;
+      width:100%;max-width:420px;
+      position:relative;z-index:1;
+      box-shadow:0 30px 60px rgba(0,0,0,.5);
+    }
+    .brand{text-align:center;margin-bottom:32px;}
+    .brand-icon{font-size:3rem;display:block;margin-bottom:8px;}
+    .brand-name{font-size:1.8rem;font-weight:800;color:#fff;letter-spacing:-.5px;}
+    .brand-name span{color:#7c3aed;}
+    .brand-sub{color:rgba(255,255,255,.5);font-size:.85rem;margin-top:4px;}
+
+    .form-label{color:rgba(255,255,255,.7);font-size:.85rem;font-weight:500;margin-bottom:6px;}
+    .form-control{
+      background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.12);
+      color:#fff;border-radius:12px;
+      padding:12px 16px;font-size:.95rem;
+      transition:border-color .2s,box-shadow .2s;
+    }
+    .form-control:focus{
+      background:rgba(255,255,255,.1);
+      border-color:#7c3aed;
+      box-shadow:0 0 0 3px rgba(124,58,237,.2);
+      color:#fff;
+    }
+    .form-control::placeholder{color:rgba(255,255,255,.3);}
+
+    .btn-login{
+      width:100%;padding:13px;
+      background:linear-gradient(135deg,#7c3aed,#4c1d95);
+      border:none;border-radius:12px;
+      color:#fff;font-size:1rem;font-weight:700;
+      letter-spacing:.3px;cursor:pointer;
+      transition:opacity .2s,transform .1s;
+      margin-top:8px;
+    }
+    .btn-login:hover{opacity:.9;transform:translateY(-1px);}
+    .btn-login:active{transform:translateY(0);}
+
+    .error-msg{
+      background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);
+      border-radius:10px;padding:10px 14px;
+      color:#fca5a5;font-size:.85rem;margin-bottom:16px;
+    }
+    .divider{
+      text-align:center;color:rgba(255,255,255,.3);
+      font-size:.78rem;margin:20px 0 16px;
+      position:relative;
+    }
+    .divider::before,.divider::after{
+      content:'';position:absolute;top:50%;width:42%;height:1px;
+      background:rgba(255,255,255,.1);
+    }
+    .divider::before{left:0;} .divider::after{right:0;}
+
+    .features{display:flex;gap:12px;justify-content:center;margin-top:28px;}
+    .feature-chip{
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+      border-radius:20px;padding:5px 12px;
+      font-size:.75rem;color:rgba(255,255,255,.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <div class="login-card">
+    <div class="brand">
+      <span class="brand-icon">🧠</span>
+      <div class="brand-name">AI<span>News</span></div>
+      <div class="brand-sub">Real-time AI intelligence dashboard</div>
+    </div>
+
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="error-msg">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+      </div>
+      <button type="submit" class="btn-login">Sign In →</button>
+    </form>
+
+    <div class="features">
+      <span class="feature-chip">🤖 Live Agent</span>
+      <span class="feature-chip">📊 AI Charts</span>
+      <span class="feature-chip">📰 Real News</span>
+    </div>
+  </div>
+</body>
+</html>

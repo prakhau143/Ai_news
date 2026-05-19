@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Dashboard — AI News{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">📊 AI Intelligence Dashboard</h1>
+    <p class="page-sub">Real-time model performance &amp; news analytics</p>
+  </div>
+  <a href="{% url 'ai_analysis' %}" class="btn-primary-outline">View Full Analysis →</a>
+</div>
+
+<!-- ── Stat cards ─────────────────────────────────────────────── -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">📰</div>
+    <div class="stat-body">
+      <div class="stat-val">{{ recent_count }}</div>
+      <div class="stat-label">Articles (last 2 days)</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#10a37f,#0d5e4a)">🗃️</div>
+    <div class="stat-body">
+      <div class="stat-val">{{ total_count }}</div>
+      <div class="stat-label">Total Cached</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#f97316,#9a3412)">⚡</div>
+    <div class="stat-body">
+      <div class="stat-val" id="agentCycles">—</div>
+      <div class="stat-label">Agent Cycles</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#4285f4,#1a2e6b)">🕒</div>
+    <div class="stat-body">
+      <div class="stat-val" id="lastRun">—</div>
+      <div class="stat-label">Last Fetch</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts row ─────────────────────────────────────────────── -->
+<div class="charts-grid">
+
+  <div class="chart-card chart-lg">
+    <div class="chart-header">
+      <span class="chart-title">🎯 Model Capabilities Radar</span>
+      <span class="chart-sub">Thinking · Coding · Design · Conversation</span>
+    </div>
+    <canvas id="radarChart" height="280"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">🏆 Quality Index</span>
+    </div>
+    <canvas id="barChart" height="220"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">💰 Price per 1M Tokens</span>
+    </div>
+    <canvas id="priceChart" height="220"></canvas>
+  </div>
+
+  <div class="chart-card chart-lg">
+    <div class="chart-header">
+      <span class="chart-title">🔵 Accuracy vs Cost</span>
+      <span class="chart-sub">Bubble size = latency</span>
+    </div>
+    <canvas id="bubbleChart" height="260"></canvas>
+  </div>
+
+</div>
+
+<!-- ── Quick links ─────────────────────────────────────────────── -->
+<div class="quick-links">
+  <a href="{% url 'news_catalogue' %}" class="quick-link-card">
+    <span>📰</span><div><strong>Browse News</strong><small>Latest AI headlines</small></div>
+  </a>
+  <a href="{% url 'ai_analysis' %}" class="quick-link-card">
+    <span>📈</span><div><strong>Full Analysis</strong><small>6 chart types</small></div>
+  </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.color = 'rgba(255,255,255,0.65)';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+
+async function loadDashboard() {
+  const res = await fetch('/api/ai-metrics/');
+  const data = await res.json();
+  const models = data.models || [];
+  const names  = models.map(m => m.name);
+  const colors = ['#7c3aed','#10a37f','#4285f4','#f97316','#ec4899'];
+
+  // Radar
+  new Chart(document.getElementById('radarChart'), {
+    type: 'radar',
+    data: {
+      labels: ['Thinking','Coding','Design','Conversation'],
+      datasets: models.map((m, i) => ({
+        label: m.name,
+        data: [m.thinking_score, m.coding_score, m.design_score, m.conversation_score],
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '22',
+        pointBackgroundColor: colors[i % colors.length],
+        borderWidth: 2, pointRadius: 4,
+      })),
+    },
+    options: {
+      responsive: true,
+      scales: { r: { min: 0, max: 10, ticks: { stepSize: 2, color: 'rgba(255,255,255,.4)', backdropColor: 'transparent' }, grid: { color: 'rgba(255,255,255,.08)' }, pointLabels: { color: 'rgba(255,255,255,.7)', font: { size: 12 } } } },
+      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } } },
+    },
+  });
+
+  // Bar — Quality Index
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: names,
+      datasets: [{ label: 'Quality Index', data: models.map(m => m.quality_index),
+        backgroundColor: colors, borderRadius: 8, borderSkipped: false }],
+    },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100 }, x: { ticks: { maxRotation: 30 } } } },
+  });
+
+  // Price
+  new Chart(document.getElementById('priceChart'), {
+    type: 'bar',
+    data: {
+      labels: names,
+      datasets: [{ label: 'USD / 1M tokens', data: models.map(m => m.price_per_1m_tokens),
+        backgroundColor: colors, borderRadius: 8, borderSkipped: false }],
+    },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } },
+  });
+
+  // Bubble — Accuracy vs Cost
+  new Chart(document.getElementById('bubbleChart'), {
+    type: 'bubble',
+    data: {
+      datasets: models.map((m, i) => ({
+        label: m.name,
+        data: [{ x: m.accuracy, y: m.price_per_1m_tokens, r: Math.max(8, m.latency_ms / 100) }],
+        backgroundColor: colors[i % colors.length] + 'bb',
+        borderColor: colors[i % colors.length],
+        borderWidth: 2,
+      })),
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: 'Accuracy (%)' } },
+        y: { title: { display: true, text: 'Price / 1M tokens ($)' } },
+      },
+      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } },
+    },
+  });
+
+  // Agent stats
+  document.getElementById('lastRun').textContent =
+    '{{ agent_status.last_run|default:"—" }}'.slice(11, 16) || '—';
+  document.getElementById('agentCycles').textContent = '{{ agent_status.cycles|default:"0" }}';
+}
+
+loadDashboard().catch(console.error);
+</script>
+{% endblock %}

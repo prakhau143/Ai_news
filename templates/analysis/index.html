@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}AI Analysis — Model Performance{% endblock %}
+
+{% block extra_css %}
+<style>
+.analysis-header{
+  background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#312e81 100%);
+  padding:24px 28px 20px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+}
+.analysis-header h1{margin:0;font-size:1.5rem;font-weight:800;color:#fff;}
+.analysis-header p{margin:0;font-size:.85rem;color:#a5b4fc;}
+.btn-refresh-data{
+  background:linear-gradient(135deg,#7c3aed,#4c1d95);
+  border:none;color:#fff;padding:9px 20px;border-radius:20px;
+  font-size:.85rem;font-weight:700;cursor:pointer;transition:.2s;
+}
+.btn-refresh-data:hover{opacity:.85;}
+
+.charts-wrap{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:20px;
+  padding:20px;
+  max-width:1600px;margin:0 auto;
+}
+.chart-panel{
+  background:rgba(15,23,42,.8);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;padding:22px;
+}
+.chart-panel.full{grid-column:1/-1;}
+.chart-panel-title{
+  font-size:.9rem;font-weight:800;color:#fff;margin-bottom:4px;
+}
+.chart-panel-sub{
+  font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:16px;
+}
+canvas{max-height:320px;}
+
+/* Heatmap table */
+.heatmap-table{width:100%;border-collapse:separate;border-spacing:4px;}
+.heatmap-table th{
+  font-size:.72rem;color:rgba(255,255,255,.5);
+  font-weight:600;text-transform:uppercase;padding:4px 8px;
+}
+.heatmap-table td{
+  text-align:center;padding:10px 6px;border-radius:8px;
+  font-size:.8rem;font-weight:700;color:#fff;
+  transition:transform .15s;
+}
+.heatmap-table td:hover{transform:scale(1.08);}
+
+/* Model comparison table */
+.model-table{width:100%;border-collapse:collapse;}
+.model-table th{
+  font-size:.72rem;color:rgba(255,255,255,.45);
+  font-weight:600;text-transform:uppercase;padding:8px 12px;
+  border-bottom:1px solid rgba(255,255,255,.08);text-align:left;
+}
+.model-table td{
+  padding:12px 12px;font-size:.85rem;color:#cbd5e1;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.model-table tr:hover td{background:rgba(255,255,255,.03);}
+.model-name{font-weight:700;color:#fff;}
+.score-bar{
+  display:flex;align-items:center;gap:8px;
+}
+.score-bar-track{
+  flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;
+}
+.score-bar-fill{height:100%;border-radius:3px;}
+
+@media(max-width:900px){
+  .charts-wrap{grid-template-columns:1fr;}
+  .chart-panel.full{grid-column:1;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analysis-header">
+  <div>
+    <h1>🧠 AI Model Analysis</h1>
+    <p>Live benchmarks — refreshed every 6 hours from Claude API</p>
+  </div>
+  <button class="btn-refresh-data" onclick="refreshData()">⟳ Refresh Data</button>
+</div>
+
+<div class="charts-wrap">
+
+  <!-- Radar -->
+  <div class="chart-panel">
+    <div class="chart-panel-title">🎯 Capability Radar</div>
+    <div class="chart-panel-sub">Thinking · Coding · Design · Conversation (0–10)</div>
+    <canvas id="radarChart"></canvas>
+  </div>
+
+  <!-- Horizontal bar — Quality Index -->
+  <div class="chart-panel">
+    <div class="chart-panel-title">🏆 Quality Index</div>
+    <div class="chart-panel-sub">Overall model quality score (0–100)</div>
+    <canvas id="qualityBar"></canvas>
+  </div>
+
+  <!-- Line — Price per 1M -->
+  <div class="chart-panel">
+    <div class="chart-panel-title">💰 Price per 1M Tokens</div>
+    <div class="chart-panel-sub">USD — lower is more cost-efficient</div>
+    <canvas id="priceChart"></canvas>
+  </div>
+
+  <!-- Scatter — Accuracy vs Cost -->
+  <div class="chart-panel">
+    <div class="chart-panel-title">🔵 Accuracy vs Cost</div>
+    <div class="chart-panel-sub">Ideal = top-left (high accuracy, low price)</div>
+    <canvas id="scatterChart"></canvas>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="chart-panel full">
+    <div class="chart-panel-title">🌡️ Metric Heatmap</div>
+    <div class="chart-panel-sub">All models × all metrics — darker = higher score</div>
+    <div id="heatmapContainer" style="overflow-x:auto"></div>
+  </div>
+
+  <!-- Bubble — Quality vs Price (bubble = latency) -->
+  <div class="chart-panel full">
+    <div class="chart-panel-title">⚖️ Quality vs Price (bubble size = latency)</div>
+    <div class="chart-panel-sub">Best value = top-left corner</div>
+    <canvas id="bubbleChart" style="max-height:360px"></canvas>
+  </div>
+
+  <!-- Summary table -->
+  <div class="chart-panel full">
+    <div class="chart-panel-title">📋 Full Benchmark Table</div>
+    <div class="chart-panel-sub">All models and metrics at a glance</div>
+    <div style="overflow-x:auto"><table class="model-table" id="modelTable"></table></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.color = 'rgba(255,255,255,0.6)';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.07)';
+
+const METRICS_DATA = {{ metrics_json|safe }};
+const COLORS = ['#7c3aed','#10a37f','#4285f4','#f97316','#ec4899','#14b8a6'];
+
+let charts = {};
+
+function initCharts(data){
+  const models = data.models || [];
+  const names  = models.map(m=>m.name);
+
+  // Destroy previous
+  Object.values(charts).forEach(c=>c.destroy&&c.destroy());
+  charts = {};
+
+  // ── Radar ──────────────────────────────────────────────────────
+  charts.radar = new Chart(document.getElementById('radarChart'),{
+    type:'radar',
+    data:{
+      labels:['Thinking','Coding','Design','Conversation'],
+      datasets: models.map((m,i)=>({
+        label: m.name,
+        data:[m.thinking_score,m.coding_score,m.design_score,m.conversation_score],
+        borderColor: COLORS[i%COLORS.length],
+        backgroundColor: COLORS[i%COLORS.length]+'22',
+        pointBackgroundColor: COLORS[i%COLORS.length],
+        borderWidth:2, pointRadius:4,
+      })),
+    },
+    options:{
+      responsive:true,
+      scales:{r:{min:0,max:10,ticks:{stepSize:2,backdropColor:'transparent'},
+        grid:{color:'rgba(255,255,255,.07)'},
+        pointLabels:{color:'rgba(255,255,255,.7)',font:{size:12}}}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:16}}},
+    },
+  });
+
+  // ── Quality bar ────────────────────────────────────────────────
+  charts.quality = new Chart(document.getElementById('qualityBar'),{
+    type:'bar',
+    data:{
+      labels:names,
+      datasets:[{
+        label:'Quality Index',
+        data:models.map(m=>m.quality_index),
+        backgroundColor:COLORS,
+        borderRadius:10,borderSkipped:false,
+      }],
+    },
+    options:{
+      indexAxis:'y',responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{min:0,max:100}},
+    },
+  });
+
+  // ── Price line ─────────────────────────────────────────────────
+  charts.price = new Chart(document.getElementById('priceChart'),{
+    type:'line',
+    data:{
+      labels:names,
+      datasets:[{
+        label:'USD / 1M tokens',
+        data:models.map(m=>m.price_per_1m_tokens),
+        borderColor:'#f97316',
+        backgroundColor:'rgba(249,115,22,.15)',
+        pointBackgroundColor:COLORS,
+        pointRadius:6,tension:.35,fill:true,
+        borderWidth:2,
+      }],
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true}},
+    },
+  });
+
+  // ── Scatter — Accuracy vs Cost ─────────────────────────────────
+  charts.scatter = new Chart(document.getElementById('scatterChart'),{
+    type:'scatter',
+    data:{
+      datasets: models.map((m,i)=>({
+        label:m.name,
+        data:[{x:m.accuracy, y:m.price_per_1m_tokens}],
+        backgroundColor: COLORS[i%COLORS.length]+'cc',
+        borderColor: COLORS[i%COLORS.length],
+        pointRadius:8,borderWidth:2,
+      })),
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{title:{display:true,text:'Accuracy (%)'}},
+        y:{title:{display:true,text:'Price / 1M tokens ($)'},beginAtZero:true},
+      },
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}}},
+    },
+  });
+
+  // ── Bubble — Quality vs Price ──────────────────────────────────
+  charts.bubble = new Chart(document.getElementById('bubbleChart'),{
+    type:'bubble',
+    data:{
+      datasets: models.map((m,i)=>({
+        label:m.name,
+        data:[{x:m.quality_index, y:m.price_per_1m_tokens, r:Math.max(8,m.latency_ms/120)}],
+        backgroundColor: COLORS[i%COLORS.length]+'bb',
+        borderColor: COLORS[i%COLORS.length],
+        borderWidth:2,
+      })),
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{title:{display:true,text:'Quality Index'}},
+        y:{title:{display:true,text:'Price / 1M tokens ($)'},beginAtZero:true},
+      },
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}}},
+    },
+  });
+
+  // ── Heatmap (CSS table) ────────────────────────────────────────
+  buildHeatmap(models);
+
+  // ── Summary table ──────────────────────────────────────────────
+  buildTable(models);
+}
+
+function buildHeatmap(models){
+  const metrics = [
+    {key:'quality_index',  label:'Quality',    max:100},
+    {key:'accuracy',       label:'Accuracy',   max:100},
+    {key:'thinking_score', label:'Thinking',   max:10},
+    {key:'coding_score',   label:'Coding',     max:10},
+    {key:'design_score',   label:'Design',     max:10},
+    {key:'conversation_score',label:'Convers.',max:10},
+  ];
+
+  let html='<table class="heatmap-table"><thead><tr><th>Model</th>';
+  metrics.forEach(m=>{ html+=`<th>${m.label}</th>`; });
+  html+='</tr></thead><tbody>';
+
+  models.forEach((model,i)=>{
+    html+=`<tr><td style="font-weight:700;color:${COLORS[i%COLORS.length]};text-align:left;padding:8px 12px">${escH(model.name)}</td>`;
+    metrics.forEach(m=>{
+      const val = model[m.key]||0;
+      const pct = val/m.max;
+      const bg  = heatColor(pct);
+      const display = m.max===10 ? val.toFixed(1) : val;
+      html+=`<td style="background:${bg}">${display}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('heatmapContainer').innerHTML=html;
+}
+
+function heatColor(pct){
+  // 0=dark blue → 1=bright purple/green
+  const r = Math.round(20 + pct*100);
+  const g = Math.round(20 + pct*150);
+  const b = Math.round(60 + pct*150);
+  return `rgba(${r},${g},${b},0.9)`;
+}
+
+function buildTable(models){
+  const t = document.getElementById('modelTable');
+  t.innerHTML=`<thead><tr>
+    <th>Model</th><th>Quality</th><th>Accuracy</th>
+    <th>Price/1M</th><th>Latency</th><th>Tag</th>
+  </tr></thead>`;
+  const tb=document.createElement('tbody');
+  models.forEach((m,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><span class="model-name" style="color:${COLORS[i%COLORS.length]}">${escH(m.name)}</span></td>
+      <td>
+        <div class="score-bar">
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:${m.quality_index}%;background:${COLORS[i%COLORS.length]}"></div></div>
+          <span>${m.quality_index}</span>
+        </div>
+      </td>
+      <td>${m.accuracy}%</td>
+      <td>$${m.price_per_1m_tokens}</td>
+      <td>${m.latency_ms}ms</td>
+      <td><span style="background:${COLORS[i%COLORS.length]}33;color:${COLORS[i%COLORS.length]};padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700">${m.quality_index>=90?'TOP':'GOOD'}</span></td>`;
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+}
+
+function escH(s){return String(s||'').replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+async function refreshData(){
+  const btn=document.querySelector('.btn-refresh-data');
+  btn.textContent='Refreshing…'; btn.disabled=true;
+  try{
+    const res=await fetch('/api/ai-metrics/?refresh=1');
+    const data=await res.json();
+    initCharts(data);
+    btn.textContent='✓ Updated';
+    setTimeout(()=>{btn.textContent='⟳ Refresh Data';btn.disabled=false;},2000);
+  }catch(e){
+    btn.textContent='Error — retry'; btn.disabled=false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>initCharts(METRICS_DATA));
+</script>
+{% endblock %}
